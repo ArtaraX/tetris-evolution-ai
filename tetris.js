@@ -1,142 +1,149 @@
-// Get the canvas element from the HTML by its ID
+// Get the canvas and its drawing context from the HTML
 const canvas = document.getElementById('tetrisCanvas');
-// document is the whole webpage; getElementById finds the element with id="tetrisCanvas"
-// const means this variable won’t be reassigned (it’s constant)
-
-// Get the 2D drawing context from the canvas
 const ctx = canvas.getContext('2d');
-// ctx is like a toolbox for drawing shapes, colors, etc. on the canvas
-// '2d' means we’re doing 2D graphics (not 3D)
 
-// Define constants for the game (values that won’t change)
-const BLOCK_SIZE = 20; // Each block in the game is 20 pixels by 20 pixels
-const BOARD_WIDTH = 10; // The game board is 10 blocks wide
-const BOARD_HEIGHT = 20; // The game board is 20 blocks tall
-// These match the canvas size: 10 blocks * 20px = 200px wide, 20 blocks * 20px = 400px tall
+// Game constants
+const BLOCK_SIZE = 20; // Each block is 20x20 pixels
+const BOARD_WIDTH = 10; // Board is 10 blocks wide
+const BOARD_HEIGHT = 20; // Board is 20 blocks tall
 
-// Function to create an empty game board as a 2D array
+// Function to create an empty board (2D array of zeros)
 function createBoard(width, height) {
-    // Array(height) creates an array with 'height' empty slots
-    // .fill() fills it with undefined (we need something to map over)
-    // .map(() => Array(width).fill(0)) turns each slot into an array of 'width' zeros
     return Array(height).fill().map(() => Array(width).fill(0));
-    // Result: a height × width grid where every spot is 0 (empty)
 }
 
-// Define all Tetris shapes as 2D arrays (1 = block, 0 = empty)
+// Define all tetromino shapes
 const TETROMINOES = {
-    I: [ // Straight line (4 blocks long)
-        [1, 1, 1, 1]
-    ],
-    O: [ // Square (2x2)
-        [1, 1],
-        [1, 1]
-    ],
-    T: [ // T-shape
-        [0, 1, 0], // Top row: empty, block, empty
-        [1, 1, 1]  // Bottom row: all blocks
-    ],
-    S: [ // S-shape (zigzag)
-        [0, 1, 1],
-        [1, 1, 0]
-    ],
-    Z: [ // Z-shape (reverse zigzag)
-        [1, 1, 0],
-        [0, 1, 1]
-    ],
-    J: [ // J-shape (L flipped)
-        [1, 0, 0],
-        [1, 1, 1]
-    ],
-    L: [ // L-shape
-        [0, 0, 1],
-        [1, 1, 1]
-    ]
+    I: [[1, 1, 1, 1]],         // Straight line
+    O: [[1, 1], [1, 1]],       // Square
+    T: [[0, 1, 0], [1, 1, 1]], // T-shape
+    S: [[0, 1, 1], [1, 1, 0]], // S-shape
+    Z: [[1, 1, 0], [0, 1, 1]], // Z-shape
+    J: [[1, 0, 0], [1, 1, 1]], // J-shape
+    L: [[0, 0, 1], [1, 1, 1]]  // L-shape
 };
-// This is an object where each key (I, O, T, etc.) maps to an array of arrays
 
-// Function to pick a random tetromino shape
+// Function to pick a random tetromino
 function createTetromino() {
-    const shapes = Object.keys(TETROMINOES); // Get array of shape names: ['I', 'O', 'T', ...]
-    // Math.random() gives a number between 0 and 1
-    // Multiply by shapes.length (7), then Math.floor rounds down to 0–6
-    const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
-    return TETROMINOES[randomShape]; // Return the 2D array for that shape
+    const shapes = Object.keys(TETROMINOES); // Array of shape names
+    const randomShape = shapes[Math.floor(Math.random() * shapes.length)]; // Random index
+    return TETROMINOES[randomShape]; // Return the shape’s 2D array
 }
 
-// Game state variables (these will change as the game runs)
-let board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // The main grid, starts empty
-let currentPiece = createTetromino(); // The active falling piece (randomly chosen)
-// pieceX is the horizontal position (in blocks, not pixels)
-// Start in the middle: BOARD_WIDTH / 2, subtract half the piece’s width, round down
-let pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2);
-let pieceY = 0; // Vertical position (in blocks), starts at the top
+// Game state variables
+let board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // The main board
+let currentPiece = createTetromino(); // The falling piece
+let pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2); // Center horizontally
+let pieceY = 0; // Start at the top
 
-// Function to draw the game on the canvas
+// Check if a move would cause a collision
+function checkCollision(x, y, piece) {
+    for (let py = 0; py < piece.length; py++) { // Loop through piece rows
+        for (let px = 0; px < piece[py].length; px++) { // Loop through piece columns
+            if (piece[py][px]) { // If this is a block
+                const boardX = x + px; // Piece’s x on the board
+                const boardY = y + py; // Piece’s y on the board
+                if (boardX < 0 || boardX >= BOARD_WIDTH || boardY >= BOARD_HEIGHT || // Out of bounds
+                    (boardY >= 0 && board[boardY][boardX])) { // Hits a locked block
+                    return true; // Collision detected
+                }
+            }
+        }
+    }
+    return false; // No collision
+}
+
+// Move the piece down one block
+function moveDown() {
+    if (!checkCollision(pieceX, pieceY + 1, currentPiece)) { // Can it move down?
+        pieceY++; // Move down
+    } else { // If it can’t move down
+        mergePiece(); // Lock it into the board
+        resetPiece(); // Spawn a new piece
+    }
+    render(); // Update the display
+}
+
+// Lock the current piece into the board
+function mergePiece() {
+    for (let y = 0; y < currentPiece.length; y++) { // Loop through piece rows
+        for (let x = 0; x < currentPiece[y].length; x++) { // Loop through piece columns
+            if (currentPiece[y][x]) { // If this is a block
+                board[pieceY + y][pieceX + x] = 1; // Mark it on the board
+            }
+        }
+    }
+}
+
+// Spawn a new piece or reset the game
+function resetPiece() {
+    currentPiece = createTetromino(); // New random piece
+    pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2); // Center it
+    pieceY = 0; // Start at top
+    if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
+        board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
+        console.log("Game Over!");
+    }
+}
+
+function moveLeft(){
+    if (!checkCollision(pieceX - 1, pieceY, currentPiece)){
+        pieceX--
+    }
+}
+
+function moveRight(){
+    if (!checkCollision(pieceX + 1, pieceY, currentPiece)){
+        pieceX++
+    }
+}
+
+function rotatePiece(){
+    const rotated = []
+    for (let x = 0; x < currentPiece[0].length; x++){
+        const row = []
+        for (let y = currentPiece.length - 1; y >= 0; y--){
+            row.push(currentPiece[y][x])
+        }
+        rotated.push(row)
+    }
+    if (!checkCollision(pieceX, pieceY, rotated)){
+        currentPiece = rotated
+    }
+    render()
+}
+
+// Draw the board and piece on the canvas
 function render() {
-    // Clear the canvas by drawing a white rectangle over everything
-    ctx.fillStyle = 'black'; // Set the fill color to white
-    ctx.fillRect(0, 0, canvas.width, canvas.height); // Draw rectangle from (0,0) to full size
-    // canvas.width and canvas.height are 200 and 400 (from HTML)
+    ctx.fillStyle = '#4169E1'; // Clear the canvas with black
+    ctx.fillRect(0, 0, canvas.width, canvas.height); // Full canvas rectangle
 
-    // Draw the board (any locked pieces)
-    for (let y = 0; y < BOARD_HEIGHT; y++) { // Loop through each row
-        for (let x = 0; x < BOARD_WIDTH; x++) { // Loop through each column
-            if (board[y][x]) { // If this spot has a block (not 0)
-                ctx.fillStyle = 'gray'; // Set color to gray for locked blocks
-                // Draw a rectangle at (x, y) in block coordinates, scaled by BLOCK_SIZE
-                // -1 makes blocks slightly smaller so we see gaps between them
-                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1);
+    for (let y = 0; y < BOARD_HEIGHT; y++) { // Loop through board rows
+        for (let x = 0; x < BOARD_WIDTH; x++) { // Loop through board columns
+            if (board[y][x]) { // If this spot is occupied
+                ctx.fillStyle = 'black'; // Locked blocks are gray
+                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1); // Draw it
             }
         }
     }
 
-    // Draw the current falling piece
-    ctx.fillStyle = 'white'; // Set color to blue for the active piece
+    ctx.fillStyle = 'white'; // Falling piece is white
     for (let y = 0; y < currentPiece.length; y++) { // Loop through piece rows
         for (let x = 0; x < currentPiece[y].length; x++) { // Loop through piece columns
-            if (currentPiece[y][x]) { // If this spot in the piece is a block
-                // Draw it at its current position (pieceX + x, pieceY + y), scaled to pixels
-                ctx.fillRect(
-                    (pieceX + x) * BLOCK_SIZE, // X position in pixels
-                    (pieceY + y) * BLOCK_SIZE, // Y position in pixels
-                    BLOCK_SIZE - 1,             // Width of block
-                    BLOCK_SIZE - 1              // Height of block
+            if (currentPiece[y][x]) { // If this is a block
+                ctx.fillRect( // Draw it at its current position
+                    (pieceX + x) * BLOCK_SIZE,
+                    (pieceY + y) * BLOCK_SIZE,
+                    BLOCK_SIZE - 1,
+                    BLOCK_SIZE - 1
                 );
             }
         }
     }
 }
 
-// Call render to draw the initial stat
+// Initial draw
 render();
 
-
-function checkCollision(x, y, piece){
-    //loop through row
-    for (let py = 0; py < piece.length; py++){
-        for (let px = 0; px < piece[py].length; px++){
-            if (piece[py][px]){
-                const boardX = x + px
-                const boardY = y + py
-
-                if (boardX < 0 || boardX >= BOARD_WIDTH || boardY >= BOARD_HEIGHT || (boardY >= 0 && board[boardY][boardX])){
-                    return True
-                }
-            }
-        }
-    }
-}
-    
-function moveDown(){
-    if(!checkCollision(pieceX, pieceY + 1, currentPiece)){
-        pieceY++
-    } else {
-        console.log('Collision detected')
-    }
-    //redraw screen to show new position
-    render() 
-}
-
-// TESTING 
-setInterval(moveDown, 500) //calls movedown every 500milliseconds
+// Make the piece fall every 500ms
+setInterval(moveDown, 100);
