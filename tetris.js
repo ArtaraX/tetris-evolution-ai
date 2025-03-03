@@ -108,5 +108,35 @@ function render() {
     }
 }
 
-// Call render to draw the initial state
+// Call render to draw the initial stat
 render();
+
+
+function checkCollision(x, y, piece){
+    //loop through row
+    for (let py = 0; py < piece.length; py++){
+        for (let px = 0; px < piece[py].length; px++){
+            if (piece[py][px]){
+                const boardX = x + px
+                const boardY = y + py
+
+                if (boardX < 0 || boardX >= BOARD_WIDTH || boardY >= BOARD_HEIGHT || (boardY >= 0 && board[boardY][boardX])){
+                    return True
+                }
+            }
+        }
+    }
+}
+    
+function moveDown(){
+    if(!checkCollision(pieceX, pieceY + 1, currentPiece)){
+        pieceY++
+    } else {
+        console.log('Collision detected')
+    }
+    //redraw screen to show new position
+    render() 
+}
+
+// TESTING 
+setInterval(moveDown, 500) //calls movedown every 500milliseconds
