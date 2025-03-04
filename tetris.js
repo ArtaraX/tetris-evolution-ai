@@ -2,6 +2,7 @@
 const canvas = document.getElementById('tetrisCanvas');
 const ctx = canvas.getContext('2d');
 
+
 // Game constants
 const BLOCK_SIZE = 20; // Each block is 20x20 pixels
 const BOARD_WIDTH = 10; // Board is 10 blocks wide
@@ -10,6 +11,8 @@ const BOARD_HEIGHT = 20; // Board is 20 blocks tall
 let lastTime = 0; // Track the last frame’s timestamp
 const dropSpeed = 500; // Piece drops every 500ms (adjustable)
 let dropCounter = 0; // Count time since last drop
+
+let score = 0
 
 // Function to create an empty board (2D array of zeros)
 function createBoard(width, height) {
@@ -102,6 +105,8 @@ function resetPiece() {
 }
 
 function clearLines(){
+    let linesCleared = 0
+
     for (let y = BOARD_HEIGHT - 1; y >= 0; y--){
         let isFull = true
 
@@ -114,9 +119,27 @@ function clearLines(){
         if (isFull){
             board.splice(y, 1) //remove row at index y; 
             board.unshift(Array(BOARD_WIDTH).fill(0))
+            linesCleared++
             y++ //because all rows got shifted i need to jump one row down and perform the isFull? check
         }
     }
+
+    // updating score according to standard tetris scoring system
+    if (linesCleared > 0){
+        switch (linesCleared){
+            case 1: score += 40; break;
+            case 2: score += 100; break;
+            case 3: score += 300; break;
+            case 4: score += 1200; break;
+        }
+    }
+}
+
+//drawing the score directly on the canvas
+function drawScore() {
+    ctx.fillStyle = 'black'; // Text color
+    ctx.font = '16px Arial'; // Font size and style
+    ctx.fillText(`Score: ${score}`, 10, 20); // Position at (10, 20)
 }
 
 function moveLeft(){
@@ -220,6 +243,7 @@ function render() {
             }
         }
     }
+    drawScore()
 }
 
 // Initial draw
