@@ -1,6 +1,8 @@
 // Get the canvas and its drawing context from the HTML
 const canvas = document.getElementById('tetrisCanvas');
 const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('nextCanvas')
+const nextCtx = nextCanvas.getContext('2d')
 
 
 // Game constants
@@ -8,11 +10,6 @@ const BLOCK_SIZE = 20; // Each block is 20x20 pixels
 const BOARD_WIDTH = 10; // Board is 10 blocks wide
 const BOARD_HEIGHT = 20; // Board is 20 blocks tall
 
-let lastTime = 0; // Track the last frame’s timestamp
-const dropSpeed = 500; // Piece drops every 500ms (adjustable)
-let dropCounter = 0; // Count time since last drop
-
-let score = 0
 
 // Function to create an empty board (2D array of zeros)
 function createBoard(width, height) {
@@ -39,9 +36,15 @@ function createTetromino() {
 
 // Game state variables
 let board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // The main board
-let currentPiece = createTetromino(); // The falling piece
+let currentPiece = createTetromino() // The falling piece
 let pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2); // Center horizontally
 let pieceY = 0; // Start at the top
+let lastTime = 0; // Track the last frame’s timestamp
+const dropSpeed = 500; // Piece drops every 500ms (adjustable)
+let dropCounter = 0; // Count time since last drop
+let score = 0
+let nextPiece = createTetromino()
+
 
 // Check if a move would cause a collision
 function checkCollision(x, y, piece) {
@@ -95,14 +98,14 @@ function mergePiece() {
 
 // Spawn a new piece or reset the game
 function resetPiece() {
-    currentPiece = createTetromino(); // New random piece
+    currentPiece = nextPiece
     pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2); // Center it
     pieceY = 0; // Start at top
     if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
         score = 0
-        console.log("Game Over!");
     }
+    nextPiece = createTetromino()
 }
 
 function clearLines(){
@@ -143,6 +146,31 @@ function drawScore() {
     ctx.fillText(`Score: ${score}`, 10, 20); // Position at (10, 20)
 }
 
+
+function drawNextPiece() {
+    // Clear the preview canvas
+    nextCtx.fillStyle = '#214B81'; // Match background color
+    nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+    
+    // Draw the next piece
+    nextCtx.fillStyle = 'silver'
+    const offsetX = (nextCanvas.width - nextPiece[0].length * BLOCK_SIZE) / 2; // Center horizontally
+    const offsetY = (nextCanvas.height - nextPiece.length * BLOCK_SIZE) / 2; // Center vertically
+    
+    for (let y = 0; y < nextPiece.length; y++) {
+        for (let x = 0; x < nextPiece[y].length; x++) {
+            if (nextPiece[y][x]) {
+                nextCtx.fillRect(
+                    offsetX + x * BLOCK_SIZE,
+                    offsetY + y * BLOCK_SIZE,
+                    BLOCK_SIZE - 1,
+                    BLOCK_SIZE - 1
+                );
+            }
+        }
+    }
+}
+
 function moveLeft(){
     if (!checkCollision(pieceX - 1, pieceY, currentPiece)){
         pieceX--
@@ -172,21 +200,11 @@ function rotatePiece(){
 
 document.addEventListener('keydown', (event) => {
     switch (event.key) {
-        case 'ArrowLeft':
-            moveLeft()
-            break
-        case 'ArrowRight':
-            moveRight()
-            break
-        case 'ArrowUp':
-            rotatePiece()
-            break
-        case 'ArrowDown':
-            moveDown()
-            break
-        case ' ':
-            hardDrop()
-            break
+        case 'ArrowLeft': moveLeft(); break
+        case 'ArrowRight': moveRight(); break
+        case 'ArrowUp': rotatePiece(); break
+        case 'ArrowDown': moveDown(); break
+        case ' ': hardDrop(); break
     }
 })
 
@@ -245,6 +263,7 @@ function render() {
         }
     }
     drawScore()
+    drawNextPiece()
 }
 
 // Initial draw
