@@ -7,6 +7,10 @@ const BLOCK_SIZE = 20; // Each block is 20x20 pixels
 const BOARD_WIDTH = 10; // Board is 10 blocks wide
 const BOARD_HEIGHT = 20; // Board is 20 blocks tall
 
+let lastTime = 0; // Track the last frame’s timestamp
+const dropSpeed = 500; // Piece drops every 500ms (adjustable)
+let dropCounter = 0; // Count time since last drop
+
 // Function to create an empty board (2D array of zeros)
 function createBoard(width, height) {
     return Array(height).fill().map(() => Array(width).fill(0));
@@ -58,10 +62,21 @@ function moveDown() {
     if (!checkCollision(pieceX, pieceY + 1, currentPiece)) { // Can it move down?
         pieceY++; // Move down
     } else { // If it can’t move down
-        mergePiece(); // Lock it into the board
-        resetPiece(); // Spawn a new piece
+        mergePiece() // Lock it into the board
+        clearLines()
+        resetPiece() // Spawn a new piece
     }
     render(); // Update the display
+}
+
+function hardDrop(){
+    while (!checkCollision(pieceX, pieceY + 1, currentPiece)){
+        pieceY++
+    }
+    // mergePiece()
+    // clearLines()
+    // resetPiece()
+    // render()
 }
 
 // Lock the current piece into the board
@@ -83,6 +98,24 @@ function resetPiece() {
     if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
         console.log("Game Over!");
+    }
+}
+
+function clearLines(){
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--){
+        let isFull = true
+
+        for (let x = 0; x < BOARD_WIDTH; x++){
+            if (board[y][x] === 0){
+                isFull = false
+                break //breaking out of the inner loop and checking the next row 
+            }
+        }
+        if (isFull){
+            board.splice(y, 1) //remove row at index y; 
+            board.unshift(Array(BOARD_WIDTH).fill(0))
+            y++ //because all rows got shifted i need to jump one row down and perform the isFull? check
+        }
     }
 }
 
@@ -113,21 +146,68 @@ function rotatePiece(){
     render()
 }
 
+document.addEventListener('keydown', (event) => {
+    switch (event.key) {
+        case 'ArrowLeft':
+            moveLeft()
+            break
+        case 'ArrowRight':
+            moveRight()
+            break
+        case 'ArrowUp':
+            rotatePiece()
+            break
+        case 'ArrowDown':
+            moveDown()
+            break
+        case ' ':
+            hardDrop()
+            break
+    }
+})
+
+
+// Main game loop
+function gameLoop(timestamp) {
+    // If this is the first frame, set lastTime
+    if (!lastTime) lastTime = timestamp;
+    
+    // Calculate time since last frame
+    const delta = timestamp - lastTime;
+    lastTime = timestamp;
+    
+    // Add time to drop counter
+    dropCounter += delta;
+    
+    // If enough time has passed, move the piece down
+    if (dropCounter >= dropSpeed) {
+        moveDown();
+        dropCounter = 0; // Reset counter
+    }
+    
+    // Redraw the screen every frame
+    render();
+    
+    // Request the next frame
+    requestAnimationFrame(gameLoop);
+}
+
+
 // Draw the board and piece on the canvas
 function render() {
-    ctx.fillStyle = '#4169E1'; // Clear the canvas with black
+    ctx.fillStyle = '#214B81'; // Clear the canvas with
     ctx.fillRect(0, 0, canvas.width, canvas.height); // Full canvas rectangle
 
     for (let y = 0; y < BOARD_HEIGHT; y++) { // Loop through board rows
         for (let x = 0; x < BOARD_WIDTH; x++) { // Loop through board columns
             if (board[y][x]) { // If this spot is occupied
-                ctx.fillStyle = 'black'; // Locked blocks are gray
+                ctx.fillStyle = '#090909'; // Locked blocks are gray
                 ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1); // Draw it
             }
         }
     }
 
-    ctx.fillStyle = 'white'; // Falling piece is white
+    ctx.fillStyle = '#FFFFFF'; // Falling piece is white
     for (let y = 0; y < currentPiece.length; y++) { // Loop through piece rows
         for (let x = 0; x < currentPiece[y].length; x++) { // Loop through piece columns
             if (currentPiece[y][x]) { // If this is a block
@@ -146,4 +226,8 @@ function render() {
 render();
 
 // Make the piece fall every 500ms
-setInterval(moveDown, 100);
+// setInterval(moveDown, 500);
+
+// Start the game loop
+requestAnimationFrame(gameLoop);
+
