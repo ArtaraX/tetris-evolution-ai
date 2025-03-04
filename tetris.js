@@ -100,6 +100,7 @@ function resetPiece() {
     pieceY = 0; // Start at top
     if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
+        score = 0
         console.log("Game Over!");
     }
 }
