@@ -44,6 +44,21 @@ const dropSpeed = 500; // Piece drops every 500ms (adjustable)
 let dropCounter = 0; // Count time since last drop
 let score = 0
 let nextPiece = createTetromino()
+const defaultWeights = {
+    lines: 1.0,
+    height: -0.5,
+    holes: -1.0,
+    bumpiness: -0.3
+};
+
+let aiPlayer = {
+    weights: defaultWeights,
+    fitness: 0 // Will track performance
+};
+
+const SPEED_LEVELS = [0, 300, 500]
+let speedIndex = 2 //starting at 500ms refresh rate
+let currentSpeed = SPEED_LEVELS[speedIndex]
 
 
 // Check if a move would cause a collision
@@ -104,6 +119,7 @@ function resetPiece() {
     if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
         score = 0
+        console.log('You lost!')
     }
     nextPiece = createTetromino()
 }
@@ -147,7 +163,7 @@ function drawScore() {
 }
 
 
-function drawNextPiece() {
+function drawNextPiece(){
     // Clear the preview canvas
     nextCtx.fillStyle = '#214B81'; // Match background color
     nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
@@ -171,6 +187,94 @@ function drawNextPiece() {
     }
 }
 
+function evaluateBoard(linesCleared, aggregateHeight, holes, bumpiness, weights) {
+    return (
+        weights.lines * linesCleared +
+        weights.height * aggregateHeight +
+        weights.holes * holes +
+        weights.bumpiness * bumpiness
+    );
+}
+
+function findBestMove(weights) {
+    let bestScore = -Infinity;
+    let bestX = pieceX;
+    let bestRot = 0;
+    const originalPiece = currentPiece.map(row => [...row]);
+    
+    for (let rot = 0; rot < 4; rot++) {
+        let width = currentPiece[0].length;
+        for (let x = 0; x <= BOARD_WIDTH - width; x++) {
+            let tempBoard = board.map(row => [...row]);
+            let tempY = pieceY;
+            while (!checkCollision(x, tempY + 1, currentPiece)) {
+                tempY++;
+            }
+            for (let y = 0; y < currentPiece.length; y++) {
+                for (let px = 0; px < currentPiece[y].length; px++) {
+                    if (currentPiece[y][px] && tempY + y >= 0) {
+                        tempBoard[tempY + y][x + px] = 1;
+                    }
+                }
+            }
+            let linesCleared = 0;
+            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                let isFull = true;
+                for (let col = 0; col < BOARD_WIDTH; col++) {
+                    if (tempBoard[y][col] === 0) {
+                        isFull = false;
+                        break;
+                    }
+                }
+                if (isFull) {
+                    tempBoard.splice(y, 1);
+                    tempBoard.unshift(Array(BOARD_WIDTH).fill(0));
+                    linesCleared++;
+                    y++;
+                }
+            }
+            // Calculate metrics
+            let heights = Array(BOARD_WIDTH).fill(0);
+            for (let col = 0; col < BOARD_WIDTH; col++) {
+                for (let row = 0; row < BOARD_HEIGHT; row++) {
+                    if (tempBoard[row][col]) {
+                        heights[col] = BOARD_HEIGHT - row;
+                        break;
+                    }
+                }
+            }
+            let aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
+            let holes = 0;
+            for (let col = 0; col < BOARD_WIDTH; col++) {
+                let blockFound = false;
+                for (let row = 0; row < BOARD_HEIGHT; row++) {
+                    if (tempBoard[row][col]) {
+                        blockFound = true;
+                    } else if (blockFound && tempBoard[row][col] === 0) {
+                        holes++;
+                    }
+                }
+            }
+            let bumpiness = 0;
+            for (let col = 0; col < BOARD_WIDTH - 1; col++) {
+                bumpiness += Math.abs(heights[col] - heights[col + 1]);
+            }
+            let score = evaluateBoard(linesCleared, aggregateHeight, holes, bumpiness, weights);
+            if (score > bestScore) {
+                bestScore = score;
+                bestX = x;
+                bestRot = rot;
+            }
+        }
+        rotatePiece();
+    }
+    
+    currentPiece = originalPiece;
+    return { x: bestX, rotations: bestRot };
+}
+
+
+//PIECE MOVEMENTS
 function moveLeft(){
     if (!checkCollision(pieceX - 1, pieceY, currentPiece)){
         pieceX--
@@ -209,28 +313,27 @@ document.addEventListener('keydown', (event) => {
 })
 
 
-// Main game loop
+// MAIN GAME LOOP
 function gameLoop(timestamp) {
-    // If this is the first frame, set lastTime
     if (!lastTime) lastTime = timestamp;
-    
-    // Calculate time since last frame
     const delta = timestamp - lastTime;
     lastTime = timestamp;
-    
-    // Add time to drop counter
     dropCounter += delta;
-    
-    // If enough time has passed, move the piece down
     if (dropCounter >= dropSpeed) {
-        moveDown();
-        dropCounter = 0; // Reset counter
+        const bestMove = findBestMove(aiPlayer.weights);
+        for (let i = 0; i < bestMove.rotations; i++) {
+            rotatePiece();
+        }
+        pieceX = bestMove.x;
+        hardDrop(); // changes the y coordinate as far down as possible to keep the piece from colliding
+        mergePiece() // committing the piece to the board
+        clearLines() // after committing to the board the board must be updated if lines are full
+        resetPiece() // after merging a new piece needs to be generated
+        dropCounter = 0;
+        aiPlayer.fitness += score; // Accumulate fitness based on score
     }
     
-    // Redraw the screen every frame
     render();
-    
-    // Request the next frame
     requestAnimationFrame(gameLoop);
 }
 
@@ -266,6 +369,8 @@ function render() {
     drawNextPiece()
 }
 
+
+
 // Initial draw
 render();
 
@@ -274,4 +379,3 @@ render();
 
 // Start the game loop
 requestAnimationFrame(gameLoop);
-
