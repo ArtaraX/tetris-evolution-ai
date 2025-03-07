@@ -56,7 +56,7 @@ let aiPlayer = {
     fitness: 0 // Will track performance
 };
 
-const SPEED_LEVELS = [0, 100, 300, 600]
+const SPEED_LEVELS = [0, 100, 400, 600]
 let speedIndex = 2 //starting at 500ms refresh rate
 let currentSpeed = SPEED_LEVELS[speedIndex]
 
@@ -403,7 +403,7 @@ function render() {
     }
 
     // Draw best placement in gold
-    ctx.fillStyle = '#1E1E1E';
+    ctx.fillStyle = '#ffffee';
     for (let y = 0; y < bestPieceShape.length; y++) {
         for (let x = 0; x < bestPieceShape[y].length; x++) {
             if (bestPieceShape[y][x]) {
