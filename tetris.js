@@ -60,6 +60,10 @@ const SPEED_LEVELS = [0, 100, 300, 600]
 let speedIndex = 2 //starting at 500ms refresh rate
 let currentSpeed = SPEED_LEVELS[speedIndex]
 
+let bestPieceX = pieceX
+let bestPieceY = pieceY
+let bestPieceShape = currentPiece
+
 
 // Check if a move would cause a collision
 function checkCollision(x, y, piece) {
@@ -170,7 +174,7 @@ function drawNextPiece(){
     nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
     
     // Draw the next piece
-    nextCtx.fillStyle = 'silver'
+    nextCtx.fillStyle = 'white'
     const offsetX = (nextCanvas.width - nextPiece[0].length * BLOCK_SIZE) / 2; // Center horizontally
     const offsetY = (nextCanvas.height - nextPiece.length * BLOCK_SIZE) / 2; // Center vertically
     
@@ -201,12 +205,16 @@ function findBestMove(weights) {
     let bestScore = -Infinity;
     let bestX = pieceX;
     let bestRot = 0;
+    let bestY = pieceY
     const originalPiece = currentPiece.map(row => [...row]);
     
     for (let rot = 0; rot < 4; rot++) {
         let width = currentPiece[0].length;
         for (let x = 0; x <= BOARD_WIDTH - width; x++) {
             
+            // this collisionCheck seems to have fixed the infinite loop bug;
+            // my game got stuck with infinite piece resets but the score didnt increase
+            // i suspect the ai calculated that the best move would be in a place that was already occupied 
             if (!checkCollision(x, pieceY, currentPiece)){
                 let tempY = pieceY
                 let tempBoard = board.map(row => [...row]);
@@ -216,9 +224,7 @@ function findBestMove(weights) {
                 }
                 for (let y = 0; y < currentPiece.length; y++) {
                     for (let px = 0; px < currentPiece[y].length; px++) {
-                        //Fixing bug >> i got stuck in an infinite loop cause i think the piece got placed into the tempboard at a spot where there already was a piece
-                        //and i think the ai decided that that spot is the optimal placement so it kept placing pieces into taken space without ever increasing the score but
-                        //it kept resetting the piece so the game was stuck... adding checkCollision below seems to have fixed it as far as i can tell.
+                       
                         if (currentPiece[y][px]) {
                             tempBoard[tempY + y][x + px] = 1;
                         }
@@ -270,6 +276,7 @@ function findBestMove(weights) {
                 if (score > bestScore) {
                     bestScore = score;
                     bestX = x;
+                    bestY = tempY //necessary to draw the best placement
                     bestRot = rot;
                 }
             }
@@ -279,6 +286,21 @@ function findBestMove(weights) {
     }
     
     currentPiece = originalPiece;
+    // Update globals after finding best move
+    bestPieceX = bestX;
+    bestPieceY = bestY;
+    bestPieceShape = currentPiece.map(row => [...row]);
+    for (let i = 0; i < bestRot; i++) {
+        const rotated = [];
+        for (let x = 0; x < bestPieceShape[0].length; x++) {
+            const row = [];
+            for (let y = bestPieceShape.length - 1; y >= 0; y--) {
+                row.push(bestPieceShape[y][x]);
+            }
+            rotated.push(row);
+        }
+        bestPieceShape = rotated;
+    }
     return { x: bestX, rotations: bestRot };
 }
 
@@ -373,6 +395,21 @@ function render() {
                 ctx.fillRect( // Draw it at its current position
                     (pieceX + x) * BLOCK_SIZE,
                     (pieceY + y) * BLOCK_SIZE,
+                    BLOCK_SIZE - 1,
+                    BLOCK_SIZE - 1
+                );
+            }
+        }
+    }
+
+    // Draw best placement in gold
+    ctx.fillStyle = '#1E1E1E';
+    for (let y = 0; y < bestPieceShape.length; y++) {
+        for (let x = 0; x < bestPieceShape[y].length; x++) {
+            if (bestPieceShape[y][x]) {
+                ctx.fillRect(
+                    (bestPieceX + x) * BLOCK_SIZE,
+                    (bestPieceY + y) * BLOCK_SIZE,
                     BLOCK_SIZE - 1,
                     BLOCK_SIZE - 1
                 );
