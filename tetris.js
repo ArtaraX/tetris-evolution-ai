@@ -56,7 +56,7 @@ let aiPlayer = {
     fitness: 0 // Will track performance
 };
 
-const SPEED_LEVELS = [0, 300, 500]
+const SPEED_LEVELS = [0, 100, 300, 600]
 let speedIndex = 2 //starting at 500ms refresh rate
 let currentSpeed = SPEED_LEVELS[speedIndex]
 
@@ -120,6 +120,7 @@ function resetPiece() {
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
         score = 0
         console.log('You lost!')
+        render()
     }
     nextPiece = createTetromino()
 }
@@ -205,67 +206,75 @@ function findBestMove(weights) {
     for (let rot = 0; rot < 4; rot++) {
         let width = currentPiece[0].length;
         for (let x = 0; x <= BOARD_WIDTH - width; x++) {
-            let tempBoard = board.map(row => [...row]);
-            let tempY = pieceY;
-            while (!checkCollision(x, tempY + 1, currentPiece)) {
-                tempY++;
-            }
-            for (let y = 0; y < currentPiece.length; y++) {
-                for (let px = 0; px < currentPiece[y].length; px++) {
-                    if (currentPiece[y][px] && tempY + y >= 0) {
-                        tempBoard[tempY + y][x + px] = 1;
+            
+            if (!checkCollision(x, pieceY, currentPiece)){
+                let tempY = pieceY
+                let tempBoard = board.map(row => [...row]);
+
+                while (!checkCollision(x, tempY + 1, currentPiece)) {
+                    tempY++;
+                }
+                for (let y = 0; y < currentPiece.length; y++) {
+                    for (let px = 0; px < currentPiece[y].length; px++) {
+                        //Fixing bug >> i got stuck in an infinite loop cause i think the piece got placed into the tempboard at a spot where there already was a piece
+                        //and i think the ai decided that that spot is the optimal placement so it kept placing pieces into taken space without ever increasing the score but
+                        //it kept resetting the piece so the game was stuck... adding checkCollision below seems to have fixed it as far as i can tell.
+                        if (currentPiece[y][px]) {
+                            tempBoard[tempY + y][x + px] = 1;
+                        }
                     }
                 }
-            }
-            let linesCleared = 0;
-            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
-                let isFull = true;
+                let linesCleared = 0;
+                for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                    let isFull = true;
+                    for (let col = 0; col < BOARD_WIDTH; col++) {
+                        if (tempBoard[y][col] === 0) {
+                            isFull = false;
+                            break;
+                        }
+                    }
+                    if (isFull) {
+                        tempBoard.splice(y, 1);
+                        tempBoard.unshift(Array(BOARD_WIDTH).fill(0));
+                        linesCleared++;
+                        y++;
+                    }
+                }
+                // Calculate metrics
+                let heights = Array(BOARD_WIDTH).fill(0);
                 for (let col = 0; col < BOARD_WIDTH; col++) {
-                    if (tempBoard[y][col] === 0) {
-                        isFull = false;
-                        break;
+                    for (let row = 0; row < BOARD_HEIGHT; row++) {
+                        if (tempBoard[row][col]) {
+                            heights[col] = BOARD_HEIGHT - row;
+                            break;
+                        }
                     }
                 }
-                if (isFull) {
-                    tempBoard.splice(y, 1);
-                    tempBoard.unshift(Array(BOARD_WIDTH).fill(0));
-                    linesCleared++;
-                    y++;
-                }
-            }
-            // Calculate metrics
-            let heights = Array(BOARD_WIDTH).fill(0);
-            for (let col = 0; col < BOARD_WIDTH; col++) {
-                for (let row = 0; row < BOARD_HEIGHT; row++) {
-                    if (tempBoard[row][col]) {
-                        heights[col] = BOARD_HEIGHT - row;
-                        break;
+                let aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
+                let holes = 0;
+                for (let col = 0; col < BOARD_WIDTH; col++) {
+                    let blockFound = false;
+                    for (let row = 0; row < BOARD_HEIGHT; row++) {
+                        if (tempBoard[row][col]) {
+                            blockFound = true;
+                        } else if (blockFound && tempBoard[row][col] === 0) {
+                            holes++;
+                        }
                     }
                 }
-            }
-            let aggregateHeight = heights.reduce((sum, h) => sum + h, 0);
-            let holes = 0;
-            for (let col = 0; col < BOARD_WIDTH; col++) {
-                let blockFound = false;
-                for (let row = 0; row < BOARD_HEIGHT; row++) {
-                    if (tempBoard[row][col]) {
-                        blockFound = true;
-                    } else if (blockFound && tempBoard[row][col] === 0) {
-                        holes++;
-                    }
+                let bumpiness = 0;
+                for (let col = 0; col < BOARD_WIDTH - 1; col++) {
+                    bumpiness += Math.abs(heights[col] - heights[col + 1]);
+                }
+                let score = evaluateBoard(linesCleared, aggregateHeight, holes, bumpiness, weights);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestX = x;
+                    bestRot = rot;
                 }
             }
-            let bumpiness = 0;
-            for (let col = 0; col < BOARD_WIDTH - 1; col++) {
-                bumpiness += Math.abs(heights[col] - heights[col + 1]);
             }
-            let score = evaluateBoard(linesCleared, aggregateHeight, holes, bumpiness, weights);
-            if (score > bestScore) {
-                bestScore = score;
-                bestX = x;
-                bestRot = rot;
-            }
-        }
+
         rotatePiece();
     }
     
@@ -303,12 +312,17 @@ function rotatePiece(){
 }
 
 document.addEventListener('keydown', (event) => {
-    switch (event.key) {
+    switch (event.key.toLowerCase()) {
         case 'ArrowLeft': moveLeft(); break
         case 'ArrowRight': moveRight(); break
         case 'ArrowUp': rotatePiece(); break
         case 'ArrowDown': moveDown(); break
         case ' ': hardDrop(); break
+        case 's':
+            speedIndex = (speedIndex + 1) % SPEED_LEVELS.length
+            currentSpeed = SPEED_LEVELS[speedIndex]
+            console.log(currentSpeed)
+            dropCounter = 0
     }
 })
 
@@ -319,7 +333,7 @@ function gameLoop(timestamp) {
     const delta = timestamp - lastTime;
     lastTime = timestamp;
     dropCounter += delta;
-    if (dropCounter >= dropSpeed) {
+    if (dropCounter >= currentSpeed) {
         const bestMove = findBestMove(aiPlayer.weights);
         for (let i = 0; i < bestMove.rotations; i++) {
             rotatePiece();
