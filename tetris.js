@@ -46,7 +46,7 @@ let score = 0
 let bestScore = 0
 let nextPiece = createTetromino()
 
-const SPEED_LEVELS = [0, 100, 400, 600]
+const SPEED_LEVELS = [0, 100, 400]
 let speedIndex = 2 //starting at 500ms refresh rate
 let currentSpeed = SPEED_LEVELS[speedIndex]
 
