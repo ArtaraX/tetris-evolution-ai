@@ -288,8 +288,7 @@ function updateInfo() {
         Height: ${player.weights.height.toFixed(2)}<br>
         Holes: ${player.weights.holes.toFixed(2)}<br>
         Bump: ${player.weights.bumpiness.toFixed(2)}<br><br>
-        Controls: <br>
-        Press 's' to switch between speeds!
+
 
     `;
 }
@@ -449,6 +448,13 @@ document.addEventListener('keydown', (event) => {
             dropCounter = 0
     }
 })
+
+const speedButton = document.getElementById('speedButton');
+speedButton.addEventListener('click', () => {
+    speedIndex = (speedIndex + 1) % SPEED_LEVELS.length;
+    currentSpeed = SPEED_LEVELS[speedIndex];
+    dropCounter = 0;
+});
 
 
 // MAIN GAME LOOP

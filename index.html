@@ -35,6 +35,20 @@
             width: 100px; /* Match nextCanvas width */
             text-align: left;
         }
+        #speedButton {
+            width: 100px; /* Match infoDiv/nextCanvas width */
+            padding: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            color: white;
+            background-color: #000000;
+            border: 1px solid #000;
+            border-radius: 3px;
+        }
+        #speedButton:hover {
+            background-color: #ffffff;
+            color: black;
+        }
         
         
         
@@ -46,11 +60,8 @@
         <canvas id="tetrisCanvas" width="200" height="400"></canvas>
         <div class="right-container">
             <canvas id="nextCanvas" width="100" height="100"></canvas>
-            <div id="infoDiv">
-                
-            </div>
-        </div>
-        </div>
+            <div id="infoDiv"></div>
+            <button id="speedButton">Change Speed</button>
     </div>
     
     <script src="tetris.js"></script>
