@@ -43,18 +43,8 @@ let lastTime = 0; // Track the last frame’s timestamp
 const dropSpeed = 500; // Piece drops every 500ms (adjustable)
 let dropCounter = 0; // Count time since last drop
 let score = 0
+let bestScore = 0
 let nextPiece = createTetromino()
-const defaultWeights = {
-    lines: 1.0,
-    height: -0.5,
-    holes: -1.0,
-    bumpiness: -0.3
-};
-
-let aiPlayer = {
-    weights: defaultWeights,
-    fitness: 0 // Will track performance
-};
 
 const SPEED_LEVELS = [0, 100, 400, 600]
 let speedIndex = 2 //starting at 500ms refresh rate
@@ -64,6 +54,26 @@ let bestPieceX = pieceX
 let bestPieceY = pieceY
 let bestPieceShape = currentPiece
 
+const POPULATION_SIZE = 30; // Bigger for blank slate
+const MUTATION_RATE = 0.1; // chance of mutation happening
+const MUTATION_STRENGTH = 0.2; //how much the weights/genes can change
+
+let population = [];
+for (let i = 0; i < POPULATION_SIZE; i++) {
+    population.push({
+        weights: {
+            lines: Math.random() * 2 - 1,
+            height: Math.random() * 2 - 1,
+            holes: Math.random() * 2 - 1,
+            bumpiness: Math.random() * 2 - 1
+        },
+        fitness: 0,
+        gamesPlayed: 0
+    });
+}
+
+let currentPlayerIndex = 0;
+let generation = 1;
 
 // Check if a move would cause a collision
 function checkCollision(x, y, piece) {
@@ -121,12 +131,86 @@ function resetPiece() {
     pieceX = Math.floor(BOARD_WIDTH / 2) - Math.floor(currentPiece[0].length / 2); // Center it
     pieceY = 0; // Start at top
     if (checkCollision(pieceX, pieceY, currentPiece)) { // If it can’t spawn
+        population[currentPlayerIndex].fitness = score
+        population[currentPlayerIndex].gamesPlayed++
+        currentPlayerIndex++
+        console.log(`Generation ${generation} Game ${currentPlayerIndex} Over with Score: ${score}`)
+        if (score >= bestScore){
+            bestScore = score
+        }
+
+        if (currentPlayerIndex >= POPULATION_SIZE){
+            currentPlayerIndex = 0 //resetting index to stay in bounds
+            evolvePopulation() // TODO
+            generation++
+            console.log(`Generation ${generation} started!`)
+        }
+
         board = createBoard(BOARD_WIDTH, BOARD_HEIGHT); // Reset the board
         score = 0
-        console.log('You lost!')
-        render()
+        
     }
     nextPiece = createTetromino()
+}
+
+function evolvePopulation(){
+    population.sort((a,b) => b.fitness - a.fitness) //descending order
+    console.log(`Generation ${generation} Best Fitness: ${population[0].fitness}`);
+    const eliteSize = POPULATION_SIZE * 0.2 // top 20% of the population are kept
+    const newPopulation = population.slice(0, eliteSize)
+
+    //filling the remaining empty population slots
+    while (newPopulation.length < POPULATION_SIZE){
+        const parent1 = selectParent()
+        const parent2 = selectParent()
+
+        const child = crossover(parent1, parent2)
+
+        mutate(child) //i could implement the mutation into crossover and save an extra step
+
+        newPopulation.push(child)
+    }
+
+    population = newPopulation.map(player => ({
+        weights: { ...player.weights }, // Deep copy weights to avoid reference issues
+        fitness: 0,                     // Reset fitness for the next generation
+        gamesPlayed: 0                  // Reset games played counter
+    }));
+
+}
+
+function selectParent() {
+    // Tournament selection: pick best of 3 random AIs
+    const tournamentSize = 3;
+    const tournament = [];
+    for (let i = 0; i < tournamentSize; i++) {
+        const idx = Math.floor(Math.random() * population.length);
+        tournament.push(population[idx]);
+    }
+    return tournament.sort((a, b) => b.fitness - a.fitness)[0];
+}
+
+function crossover(parent1, parent2) {
+    // Blend parents’ weights with a small random tweak
+    const tweak = 0.1;
+    return {
+        weights: {
+            lines: (parent1.weights.lines + parent2.weights.lines) / 2 + (Math.random() - 0.5) * tweak,
+            height: (parent1.weights.height + parent2.weights.height) / 2 + (Math.random() - 0.5) * tweak,
+            holes: (parent1.weights.holes + parent2.weights.holes) / 2 + (Math.random() - 0.5) * tweak,
+            bumpiness: (parent1.weights.bumpiness + parent2.weights.bumpiness) / 2 + (Math.random() - 0.5) * tweak
+        },
+        fitness: 0,
+        gamesPlayed: 0
+    };
+}
+
+function mutate(player) {
+    // Randomly adjust weights with 10% chance each
+    if (Math.random() < MUTATION_RATE) player.weights.lines += (Math.random() - 0.5) * MUTATION_STRENGTH;
+    if (Math.random() < MUTATION_RATE) player.weights.height += (Math.random() - 0.5) * MUTATION_STRENGTH;
+    if (Math.random() < MUTATION_RATE) player.weights.holes += (Math.random() - 0.5) * MUTATION_STRENGTH;
+    if (Math.random() < MUTATION_RATE) player.weights.bumpiness += (Math.random() - 0.5) * MUTATION_STRENGTH;
 }
 
 function clearLines(){
@@ -190,6 +274,24 @@ function drawNextPiece(){
             }
         }
     }
+}
+
+function updateInfo() {
+    const infoDiv = document.getElementById('infoDiv');
+    const player = population[currentPlayerIndex];
+    infoDiv.innerHTML = `
+        BEST SCORE: ${bestScore} <br><br>
+        ${POPULATION_SIZE - currentPlayerIndex} games until evolution <br><br>
+        Current Generation: ${generation}<br><br>
+        (Weights/Genes)<br>
+        Lines: ${player.weights.lines.toFixed(2)}<br>
+        Height: ${player.weights.height.toFixed(2)}<br>
+        Holes: ${player.weights.holes.toFixed(2)}<br>
+        Bump: ${player.weights.bumpiness.toFixed(2)}<br><br>
+        Controls: <br>
+        Press 's' to switch between speeds!
+
+    `;
 }
 
 function evaluateBoard(linesCleared, aggregateHeight, holes, bumpiness, weights) {
@@ -356,7 +458,7 @@ function gameLoop(timestamp) {
     lastTime = timestamp;
     dropCounter += delta;
     if (dropCounter >= currentSpeed) {
-        const bestMove = findBestMove(aiPlayer.weights);
+        const bestMove = findBestMove(population[currentPlayerIndex].weights);
         for (let i = 0; i < bestMove.rotations; i++) {
             rotatePiece();
         }
@@ -366,7 +468,6 @@ function gameLoop(timestamp) {
         clearLines() // after committing to the board the board must be updated if lines are full
         resetPiece() // after merging a new piece needs to be generated
         dropCounter = 0;
-        aiPlayer.fitness += score; // Accumulate fitness based on score
     }
     
     render();
@@ -418,6 +519,7 @@ function render() {
     }
     drawScore()
     drawNextPiece()
+    updateInfo()
 }
 
 
