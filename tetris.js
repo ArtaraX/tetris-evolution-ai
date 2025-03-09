@@ -503,7 +503,7 @@ function render() {
         }
     }
 
-    // Draw best placement in gold
+    // Draw best placement 
     ctx.fillStyle = '#ffffee';
     for (let y = 0; y < bestPieceShape.length; y++) {
         for (let x = 0; x < bestPieceShape[y].length; x++) {
